@@ -1,0 +1,97 @@
+from pyspark.sql import *
+from pyspark.sql.types import *
+#from delta import *
+#from delta.tables import *
+from pyspark.sql.functions import *
+
+if __name__ == "__main__":
+
+#    parser = argparse.ArgumentParser()
+#    parser.add_argument('entity', help='entity name', type=int)
+    #parser.add_argument('year', help='execution year', type=int)
+    #parser.add_argument('month', help='execution month', type=int)
+    #parser.add_argument('day', help='execution day', type=int)
+    #parser.add_argument('opco', help='opco to be executed', type=str)
+    #args = parser.parse_args()
+    #assert args.opco in ('ES', 'UK', 'CSA'), 'Invalid OpCo code. Please input CSA, ES or UK to proceed.'
+
+    spark = SparkSession \
+        .builder \
+        .appName("DeltaLake") \
+        .config("spark.jars", "/usr/lib/spark/jars/delta-core_2.11-0.6.1")\
+        .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
+        .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog") \
+        .getOrCreate()
+
+
+    spark.sparkContext.addPyFile("/usr/lib/spark/jars/delta-core_2.11-0.6.1.jar")
+    spark.sparkContext.setLogLevel("ERROR")
+
+    from delta import *
+    from delta.tables import *
+
+    entity_name="1sf_ooportunity"
+    account="s3://vf-bdc-vb-euce1-dev-data/datalake/"+entity_name+"/year=2019/month=6/day=4"
+    account="s3://vf-bdc-vb-euce1-dev-data/datalake/"+entity_name+"/"
+    #df=spark.read.format("csv").load(f"s3://vf-bdc-vb-euce1-dev-submission/{entity}",header=True, inferSchema=True)
+    df=spark.read.format("parquet").load("s3://vf-bdc-vb-euce1-dev-data/datalake/1sf_account/")
+    #df=spark.read.format("parquet").load(account)
+    #df=spark.read.format("parquet").load(f"s3://vf-bdc-vb-euce1-dev-data/datalake/1sf_account/year=2019/month=6/day=4")
+    df.printSchema()
+    df.write.format("delta").mode("overwrite").save("s3://get-leap-dev-emr-temp/delta-table-PoC/")
+    #spark.read.format("delta").load("s3://get-leap-dev-emr-temp/delta-table-PoC/")
+    #schema = StructType([StructField("Id", IntegerType(), True),StructField("name", StringType(), True),StructField("location", StringType(), True)])
+    #delta_df=spark.read.format("delta").option("schema",schema).load("s3://get-leap-dev-emr-temp/delta-table-PoC/")
+    #delta_df.columns=[("code","Name","location")]
+    #delta_df.show()
+    #print("The dataframe type {}".format(delta_df.dtypes))
+    #print("The schema is {}".format(delta_df.schema))
+    #spark.read.format("delta").load("s3://get-leap-dev-emr-temp/delta-table-PoC/").show()
+    ######TEST DATA ##################
+    ##################################
+    #data = spark.range(0, 5)
+    #data.write.format("delta").mode("overwrite").save("s3://get-leap-dev-emr-temp/test/")
+    #df_delta = spark.read.format("delta").load("s3://get-leap-dev-emr-temp/test/")
+    #df_delta.show()
+    #data = spark.range(5, 10)
+    #data.write.format("delta").mode("overwrite").save("s3://get-leap-dev-emr-temp/test/")
+    deltaTable = DeltaTable.forPath(spark, "s3://get-leap-dev-emr-temp/delta-table-PoC/")
+#    df.write.format("delta").mode("overwrite").saveAsTable("OPPOTUNITY")
+#    spark.sql("SELECT * FROM OPPOTUNITY")
+#    from delta import *
+#    from delta.tables import *
+
+    print("Testing  delta lake")
+
+###############
+    product_df=spark.read.format("csv").option("header","true").load("s3://vf-bdc-vb-euce1-dev-submission/delta/products.csv")
+    product_df.show()
+    product_df.write.format("delta").mode("overwrite").save("s3://get-leap-dev-emr-temp/product_delta")
+    product_delta= DeltaTable.forPath(spark, "s3://get-leap-dev-emr-temp/product_delta")
+    product_df1=spark.read.format("csv").option("header","true").load("s3://vf-bdc-vb-euce1-dev-submission/delta/product_ver1.csv")
+    product_df1.show()
+    #spark.table("product_delta")
+    product_delta.alias("baseload").merge(product_df1.alias("newdata"),"baseload.product=newdata.product") \
+    .whenMatchedUpdate(set = { "product": col("newData.product") }) \
+    .whenNotMatchedInsert(values = { "product": col("newdata.product"),
+                                     "category":col("newdata.category"),
+                                     "price":col("newdata.price")
+                                  }) \
+    .execute()
+
+
+    spark.sql("CREATE TABLE product USING DELTA LOCATION 's3://get-leap-dev-emr-temp/product_delta' ")
+    spark.sql("select * from product").show()
+    #spark.sql("SELECT * FROM delta.`/user/spark/warehouse/oppotunity`")
+    #CREATE OR REPLACE TABLE delta.`s3://get-leap-dev-emr-temp/product_delta` (
+    #product STRING,
+    #category STRING,
+    #price INTEGER)
+    #USING DELTA
+    #DeltaTable.createIfNotExists(spark) \
+    #.tableName("product") \
+    #.addColumn("date", DateType()) \
+    #.addColumn("eventId", "STRING") \
+    #.addColumn("eventType", StringType()) \
+    #.addColumn("data", "STRING", comment = "event data") \
+    #.execute()

@@ -1,0 +1,38 @@
+[hadoop@ip-10-1-2-14 ~]$ cat delta-lake.py
+from pyspark.sql import *
+from pyspark.sql.types import *
+from delta import *
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('entity', help='entity name', type=int)
+    #parser.add_argument('year', help='execution year', type=int)
+    #parser.add_argument('month', help='execution month', type=int)
+    #parser.add_argument('day', help='execution day', type=int)
+    #parser.add_argument('opco', help='opco to be executed', type=str)
+    #args = parser.parse_args()
+    #assert args.opco in ('ES', 'UK', 'CSA'), 'Invalid OpCo code. Please input CSA, ES or UK to proceed.'
+
+    spark = SparkSession \
+        .builder \
+        .appName("DeltaLake") \
+        .config("spark.jars", "delta-core_2.11-0.6.1")\
+        .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
+        .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog") \
+        .getOrCreate()
+
+    #from delta import *
+
+    data = spark.range(0, 5)
+    #df=spark.read.format("csv").load(f"s3://vf-bdc-vb-euce1-dev-submission/{entity}",header=True, inferSchema=True)
+    df=spark.read.foramt("parquet").load("s3://vf-bdc-vb-euce1-dev-data/datalake/1sf_account/year=2019/month=6/day=4")
+    df.printSchema()
+    df.write.format("delta").mode("overwrite").save("s3://get-leap-dev-emr-temp/delta-table-PoC/")
+    delta_df=spark.read.format("delta").load("s3://get-leap-dev-emr-temp/delta-table-PoC/")
+    schema = StructType([StructField("Id", IntegerType(), True),StructField("name", StringType(), True),StructField("location", StringType(), True)])
+    #delta_df=spark.read.format("delta").option("schema",schema).load("s3://get-leap-dev-emr-temp/delta-table-PoC/")
+    #delta_df.columns=[("code","Name","location")]
+    delta_df.show()
+    print("The dataframe type {}".format(delta_df.dtypes))
+    print("The schema is {}".format(delta_df.schema))

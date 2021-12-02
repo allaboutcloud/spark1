@@ -1,0 +1,16 @@
+pyspark --py-files /path/to/jar/xxxx.jar
+
+
+spark = (SparkSession
+    .builder
+    .appName("Spark_Test")
+    .master('yarn-client')
+    .config("spark.sql.warehouse.dir", "/user/hive/warehouse")
+    .config("spark.executor.cores", "4")
+    .config("spark.executor.instances", "2")
+    .config("spark.sql.shuffle.partitions","8")
+    .enableHiveSupport()
+    .getOrCreate())
+
+
+spark.sparkContext.addPyFile("/path/to/jar/xxxx.jar")

@@ -1,0 +1,26 @@
+import boto3
+
+#export PYTHONPATH= "/user/bin/python3"
+
+#!/user/bin/env python3
+
+
+
+print("working on checking prefix in s3")
+parquet_file_name=[]
+client = boto3.client('s3')
+
+response = client.list_objects_v2(Bucket='vf-bdc-vb-euce1-dev-data',Prefix='datalake/1sf_account_history/')
+#print(response)
+for k,v in response.items():
+    if (k=="KeyCount"):
+        print('++++++++++++++++++++'+k+'++++++++++'+str(v)+'++++++++++++++++++++++++++++++++')
+    if (k=="Contents"):
+            for key in v:
+                for keys,values in key.items():
+                    if (keys=="Key"):
+                        if(values.endswith("parquet")):
+                            #print(values)
+                            parquet_file_name.append(values)
+
+print(parquet_file_name)
